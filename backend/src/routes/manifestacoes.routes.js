@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   list,
   getById,
+  getByProtocolo,
   create,
   update,
   remove,
@@ -10,6 +11,7 @@ import {
 const router = Router();
 
 router.get('/', list);
+router.get('/protocolo/:protocolo', getByProtocolo);
 router.get('/:id', getById);
 router.post('/', create);
 router.put('/:id', update);
