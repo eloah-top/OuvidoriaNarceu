@@ -1,8 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import iconSolicitacao from '../assets/reference/icon-solicitacao.png';
+import iconReclamacao from '../assets/reference/icon-reclamacao.png';
+import iconDenuncia from '../assets/reference/icon-denuncia.png';
+import iconElogio from '../assets/reference/icon-elogio.png';
+import iconSugestao from '../assets/reference/icon-sugestao.png';
+import iconIdentificar from '../assets/reference/icon-identificar.png';
+import iconAnonimo from '../assets/reference/icon-anonimo.png';
+import setorDirecao from '../assets/reference/image0_152_86.png';
+import setorPedagogico from '../assets/reference/image1_152_86.png';
+import setorSecretaria from '../assets/reference/image2_152_86.png';
+import setorApoie from '../assets/reference/image3_152_86.png';
+import setorTutor from '../assets/reference/image4_152_86.png';
 
-const TIPOS = ['denuncia', 'reclamacao', 'sugestao', 'elogio', 'solicitacao'];
+const TIPOS = [
+  { value: 'solicitacao', label: 'Solicitação', desc: 'Pedido de informação, serviço ou providência que não configure reclamação ou denúncia.', icon: iconSolicitacao },
+  { value: 'reclamacao', label: 'Reclamação', desc: 'Insatisfação com serviços, atendimento ou situações negativas.', icon: iconReclamacao },
+  { value: 'denuncia', label: 'Denúncia', desc: 'Relato de irregularidades ou situações que precisam ser investigadas.', icon: iconDenuncia },
+  { value: 'elogio', label: 'Elogio', desc: 'Demonstração de satisfação, reconhecimento e valorização de pessoas ou serviços.', icon: iconElogio },
+  { value: 'sugestao', label: 'Sugestão', desc: 'Ideias ou propostas para melhorar os serviços públicos, o atendimento ou a qualidade de vida da população.', icon: iconSugestao },
+];
+
 const SETORES = [
   { value: 'direcao', label: 'Direção' },
   { value: 'pedagogico', label: 'Pedagógico' },
@@ -11,18 +30,27 @@ const SETORES = [
   { value: 'tutor', label: 'Tutor' },
 ];
 
+const SETORES_INFO = [
+  { value: 'direcao', label: 'DIREÇÃO', img: setorDirecao, texto: 'Gerencia a escola: áreas administrativa, financeira e jurídica.' },
+  { value: 'pedagogico', label: 'PEDAGÓGICO', img: setorPedagogico, texto: 'Planeja o ensino e acompanha o desenvolvimento dos alunos.' },
+  { value: 'secretaria', label: 'SECRETARIA', img: setorSecretaria, texto: 'Gestão administrativa, documental e registros.' },
+  { value: 'apoie', label: 'APOIE', img: setorApoie, texto: 'Atendimento psicossocial e orientação aos estudantes.' },
+  { value: 'tutor', label: 'TUTOR', img: setorTutor, texto: 'Acompanha e orienta o desenvolvimento do aluno.' },
+];
+
 const STEPS = [
   { label: 'Identificação' },
-  { label: 'Tipo e setor' },
-  { label: 'Detalhes' },
-  { label: 'Revisão' },
+  { label: 'Tipo' },
+  { label: 'Setor' },
+  { label: 'Dados' },
+  { label: 'Confirmação' },
 ];
 
 const initial = {
-  anonimo: false,
+  anonimo: null,
   nome: '',
   turma: '',
-  tipo: 'reclamacao',
+  tipo: '',
   setor: '',
   titulo: '',
   descricao: '',
@@ -46,10 +74,26 @@ export default function NovaManifestacao() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function setorLabel() {
+    const s = SETORES.find((x) => x.value === form.setor);
+    return s ? s.label : '—';
+  }
+
+  function tipoLabel() {
+    const t = TIPOS.find((x) => x.value === form.tipo);
+    return t ? t.label : '—';
+  }
+
+  function identLabel() {
+    if (form.anonimo === null) return '—';
+    return form.anonimo ? 'Anônimo' : 'Identificado';
+  }
+
   function validateStep(s) {
-    if (s === 0) return true; // identificação opcional
-    if (s === 1) return true; // tipo tem default
-    if (s === 2) {
+    if (s === 0) return form.anonimo !== null;
+    if (s === 1) return !!form.tipo;
+    if (s === 2) return !!form.setor;
+    if (s === 3) {
       if (form.titulo.trim().length < 3) return false;
       if (form.descricao.trim().length < 5) return false;
     }
@@ -81,9 +125,9 @@ export default function NovaManifestacao() {
 
   async function onSubmit(e) {
     if (e) e.preventDefault();
-    if (!validateStep(2)) {
+    if (!validateStep(3)) {
       setError('Preencha os campos obrigatórios.');
-      setStep(2);
+      setStep(3);
       return;
     }
     setLoading(true);
@@ -94,10 +138,10 @@ export default function NovaManifestacao() {
         titulo: form.titulo,
         descricao: form.descricao,
         setor: form.setor || undefined,
-        anonimo: form.anonimo,
-        ...(form.anonimo
-          ? {}
-          : { nome: form.nome || undefined, turma: form.turma || undefined }),
+        anonimo: !!form.anonimo,
+        ...(!form.anonimo
+          ? { nome: form.nome || undefined, turma: form.turma || undefined }
+          : {}),
       };
       const item = await api.createManifestacao(payload);
       setSuccess(item);
@@ -132,6 +176,14 @@ export default function NovaManifestacao() {
     );
   }
 
+  const SummaryBar = (
+    <div className="manifest-summary">
+      <div><strong>Destinário:</strong> {setorLabel()}</div>
+      <div><strong>Tipo:</strong> {tipoLabel()}</div>
+      <div><strong>Identificação:</strong> {identLabel()}</div>
+    </div>
+  );
+
   return (
     <div className="section">
       <div className="container" style={{ maxWidth: 760 }}>
@@ -157,20 +209,110 @@ export default function NovaManifestacao() {
           </div>
 
           <div className="wizard__viewport">
-            <div className="wizard__track" style={{ transform: `translateX(-${step * 25}%)` }}>
+            <div className="wizard__track" style={{ transform: `translateX(-${step * 20}%)` }}>
               <div className="wizard__slide">
                 <div className="card">
                   <h2>Identificação</h2>
-                  <div className="form">
-                    <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={form.anonimo}
-                        onChange={(e) => update('anonimo', e.target.checked)}
-                        style={{ width: 'auto' }}
-                      />
-                      Enviar de forma anônima
-                    </label>
+                  <p className="muted" style={{ marginBottom: 12 }}>
+                    Você pode se identificar ou permanecer anônimo. Ambas as formas são aceitas.
+                  </p>
+                  {SummaryBar}
+                  <div className="option-grid">
+                    <button
+                      type="button"
+                      className={`option-card ${form.anonimo === false ? 'selected' : ''}`}
+                      onClick={() => update('anonimo', false)}
+                    >
+                      <img src={iconIdentificar} alt="" className="option-card__icon" />
+                      <div className="option-card__title">Sim, quero me identificar</div>
+                      <div className="option-card__desc">Seu nome e turma serão incluídos na manifestação.</div>
+                    </button>
+                    <button
+                      type="button"
+                      className={`option-card ${form.anonimo === true ? 'selected' : ''}`}
+                      onClick={() => update('anonimo', true)}
+                    >
+                      <img src={iconAnonimo} alt="" className="option-card__icon" />
+                      <div className="option-card__title">Não, quero permanecer anônimo</div>
+                      <div className="option-card__desc">Sua identidade será mantida em sigilo absoluto.</div>
+                    </button>
+                  </div>
+                  {form.anonimo === true && (
+                    <div className="anon-notice">
+                      Sua manifestação será enviada de forma anônima. Nenhuma informação de identificação será coletada.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="wizard__slide">
+                <div className="card">
+                  <h2>Tipo</h2>
+                  {SummaryBar}
+                  <h3 style={{ marginTop: 8 }}>Qual o tipo de manifestação?</h3>
+                  <p className="muted" style={{ marginBottom: 12 }}>Escolha a categoria que melhor descreve sua manifestação.</p>
+                  <div className="type-grid">
+                    <div className="type-grid__row">
+                      {TIPOS.slice(0, 3).map((t) => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          className={`type-card ${form.tipo === t.value ? 'selected' : ''}`}
+                          onClick={() => update('tipo', t.value)}
+                        >
+                          <img src={t.icon} alt="" className="type-card__icon" />
+                          <div className="type-card__title">{t.label}</div>
+                          <div className="type-card__desc">{t.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="type-grid__row type-grid__row--center">
+                      {TIPOS.slice(3).map((t) => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          className={`type-card ${form.tipo === t.value ? 'selected' : ''}`}
+                          onClick={() => update('tipo', t.value)}
+                        >
+                          <img src={t.icon} alt="" className="type-card__icon" />
+                          <div className="type-card__title">{t.label}</div>
+                          <div className="type-card__desc">{t.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="wizard__slide">
+                <div className="card">
+                  <h2>Setor</h2>
+                  {SummaryBar}
+                  <p className="muted" style={{ marginTop: 8, marginBottom: 12 }}>Escolha o setor escolar ao qual deseja direcionar sua manifestação.</p>
+                  <div className="sector-select-grid">
+                    {SETORES_INFO.map((s) => (
+                      <button
+                        key={s.value}
+                        type="button"
+                        className={`sector-select-card ${form.setor === s.value ? 'selected' : ''}`}
+                        onClick={() => update('setor', s.value)}
+                      >
+                        <div className="sector-select-card__icon">
+                          <img src={s.img} alt={s.label} />
+                        </div>
+                        <h3>{s.label}</h3>
+                        <p>{s.texto}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="wizard__slide">
+                <div className="card">
+                  <h2>Dados</h2>
+                  {SummaryBar}
+                  <div className="form" style={{ marginTop: 12 }}>
                     {!form.anonimo && (
                       <>
                         <label>
@@ -188,35 +330,6 @@ export default function NovaManifestacao() {
                         </label>
                       </>
                     )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="wizard__slide">
-                <div className="card">
-                  <h2>Tipo e setor</h2>
-                  <div className="form">
-                    <label>
-                      Tipo
-                      <select value={form.tipo} onChange={(e) => update('tipo', e.target.value)}>
-                        {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </label>
-                    <label>
-                      Setor (opcional)
-                      <select value={form.setor} onChange={(e) => update('setor', e.target.value)}>
-                        <option value="">—</option>
-                        {SETORES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="wizard__slide">
-                <div className="card">
-                  <h2>Detalhes</h2>
-                  <div className="form">
                     <label>
                       Título
                       <input
@@ -242,7 +355,7 @@ export default function NovaManifestacao() {
 
               <div className="wizard__slide">
                 <div className="card">
-                  <h2>Revisão</h2>
+                  <h2>Confirmação</h2>
                   <div style={{ display: 'grid', gap: 8 }}>
                     <p><strong>Anônimo:</strong> {form.anonimo ? 'Sim' : 'Não'}</p>
                     {!form.anonimo && (
@@ -267,12 +380,17 @@ export default function NovaManifestacao() {
           </div>
 
           <div className="wizard__actions">
-            <button type="button" className="btn btn-outline" onClick={goPrev} disabled={step === 0}>
-              Voltar
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="btn btn-outline" onClick={() => navigate('/')}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-outline" onClick={goPrev} disabled={step === 0}>
+                Voltar
+              </button>
+            </div>
             {step < STEPS.length - 1 && (
               <button type="button" className="btn btn-primary" onClick={goNext}>
-                Avançar
+                Próximo
               </button>
             )}
           </div>
