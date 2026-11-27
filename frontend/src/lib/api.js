@@ -3,7 +3,9 @@ const BASE = import.meta.env.VITE_API_URL || '/api';
 async function handle(res) {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error?.message || `HTTP ${res.status}`);
+    const err = new Error(body?.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -36,11 +38,5 @@ export const api = {
     }).then(handle),
   deleteManifestacao: (id) =>
     fetch(`${BASE}/manifestacoes/${id}`, { method: 'DELETE' }).then(handle),
-  listTurmas: () => fetch(`${BASE}/turmas`).then(handle),
-  createTurma: (data) =>
-    fetch(`${BASE}/turmas`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    }).then(handle),
+
 };

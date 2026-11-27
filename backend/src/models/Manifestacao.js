@@ -15,7 +15,6 @@ export const Manifestacao = sequelize.define(
     descricao: { type: DataTypes.TEXT, allowNull: false },
     setor: { type: DataTypes.ENUM(...SETORES), allowNull: true },
     turma: { type: DataTypes.STRING(50), allowNull: true },
-    turmaId: { type: DataTypes.INTEGER, allowNull: true },
     nome: { type: DataTypes.STRING(120), allowNull: true },
     contato: { type: DataTypes.STRING(120), allowNull: true },
     anonimo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

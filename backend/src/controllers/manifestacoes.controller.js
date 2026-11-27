@@ -1,6 +1,11 @@
 import { Op } from 'sequelize';
 import { Manifestacao, TIPOS, SETORES, STATUS } from '../models/Manifestacao.js';
-import { Turma } from '../models/Turma.js';
+import { sendManifestacaoEmail } from '../services/email.service.js';
+import { validarCampos } from '../services/profanity.service.js';
+
+function normalizarTurma(v) {
+  return String(v || '').trim().slice(0, 10);
+}
 
 function validate(data, partial = false) {
   const errors = [];
@@ -26,12 +31,36 @@ function validate(data, partial = false) {
   if (data.anonimo !== undefined && typeof data.anonimo !== 'boolean') {
     errors.push('anonimo deve ser boolean');
   }
+  if (data.turma !== undefined && data.turma !== null && data.turma !== '' && !data.anonimo) {
+    if (String(data.turma).trim().length > 10) {
+      errors.push('turma deve ter no máximo 10 caracteres');
+    }
+  }
   return errors;
 }
 
-function buildProtocolo(id) {
+const PROTOCOLO_ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function gerarParteAleatoria(tamanho = 8) {
+  let out = '';
+  for (let i = 0; i < tamanho; i++) {
+    out += PROTOCOLO_ALFABETO.charAt(Math.floor(Math.random() * PROTOCOLO_ALFABETO.length));
+  }
+  return out;
+}
+
+function buildProtocolo() {
   const year = new Date().getFullYear();
-  return `NRC-${year}-${String(id).padStart(4, '0')}`;
+  return `NRC-${year}-${gerarParteAleatoria(8)}`;
+}
+
+async function gerarProtocoloUnico() {
+  for (let i = 0; i < 10; i++) {
+    const p = buildProtocolo();
+    const exists = await Manifestacao.findOne({ where: { protocolo: p } });
+    if (!exists) return p;
+  }
+  throw new Error('Não foi possível gerar protocolo único');
 }
 
 export async function list(req, res, next) {
@@ -48,11 +77,15 @@ export async function list(req, res, next) {
         { protocolo: { [Op.like]: q } },
       ];
     }
-    const items = await Manifestacao.findAll({
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const { rows, count } = await Manifestacao.findAndCountAll({
       where,
       order: [['createdAt', 'DESC']],
+      limit,
+      offset,
     });
-    res.json(items);
+    res.json({ data: rows, total: count, limit, offset });
   } catch (err) {
     next(err);
   }
@@ -70,7 +103,9 @@ export async function getById(req, res, next) {
 
 export async function getByProtocolo(req, res, next) {
   try {
-    const item = await Manifestacao.findOne({ where: { protocolo: req.params.protocolo } });
+    const item = await Manifestacao.findOne({
+      where: { protocolo: req.params.protocolo },
+    });
     if (!item) return res.status(404).json({ error: { message: 'Manifestação não encontrada', status: 404 } });
     res.json(item);
   } catch (err) {
@@ -83,19 +118,12 @@ export async function create(req, res, next) {
     const errors = validate(req.body);
     if (errors.length) return res.status(400).json({ error: { message: errors.join('; '), status: 400 } });
 
-    let turmaId = null;
-    let turmaNome = null;
-    if (!req.body.anonimo && req.body.turma) {
-      const turma = await Turma.findOne({ where: { nome: req.body.turma, ativo: true } });
-      if (!turma) {
-        return res.status(400).json({ error: { message: 'turma não encontrada', status: 400 } });
-      }
-      turmaId = turma.id;
-      turmaNome = turma.nome;
+    const camposRuins = validarCampos(req.body);
+    if (camposRuins.length) {
+      return res.status(400).json({ error: { message: `Conteúdo inapropriado detectado no campo: ${camposRuins.join(', ')}`, status: 400 } });
     }
 
-    const last = await Manifestacao.findOne({ order: [['id', 'DESC']] });
-    const protocolo = buildProtocolo((last?.id || 0) + 1);
+    const protocolo = await gerarProtocoloUnico();
 
     const item = await Manifestacao.create({
       protocolo,
@@ -103,12 +131,14 @@ export async function create(req, res, next) {
       titulo: req.body.titulo.trim(),
       descricao: req.body.descricao.trim(),
       setor: req.body.setor || null,
-      turma: req.body.anonimo ? null : (turmaNome || null),
-      turmaId: req.body.anonimo ? null : turmaId,
+      turma: req.body.anonimo ? null : (normalizarTurma(req.body.turma) || null),
       nome: req.body.anonimo ? null : (req.body.nome?.trim() || null),
       contato: req.body.anonimo ? null : (req.body.contato?.trim() || null),
       anonimo: Boolean(req.body.anonimo),
       status: 'aberta',
+    });
+    setImmediate(() => {
+      sendManifestacaoEmail(item).catch(() => {});
     });
     res.status(201).json(item);
   } catch (err) {
@@ -124,6 +154,11 @@ export async function update(req, res, next) {
     const errors = validate(req.body, true);
     if (errors.length) return res.status(400).json({ error: { message: errors.join('; '), status: 400 } });
 
+    const camposRuins = validarCampos(req.body);
+    if (camposRuins.length) {
+      return res.status(400).json({ error: { message: `Conteúdo inapropriado detectado no campo: ${camposRuins.join(', ')}`, status: 400 } });
+    }
+
     const payload = {};
     if (req.body.tipo) payload.tipo = req.body.tipo;
     if (req.body.titulo) payload.titulo = req.body.titulo.trim();
@@ -132,17 +167,13 @@ export async function update(req, res, next) {
     if (req.body.turma !== undefined) {
       if (req.body.anonimo) {
         payload.turma = null;
-        payload.turmaId = null;
       } else if (req.body.turma) {
-        const turma = await Turma.findOne({ where: { nome: req.body.turma, ativo: true } });
-        if (!turma) {
-          return res.status(400).json({ error: { message: 'turma não encontrada', status: 400 } });
+        if (String(req.body.turma).trim().length > 10) {
+          return res.status(400).json({ error: { message: 'turma deve ter no máximo 10 caracteres', status: 400 } });
         }
-        payload.turma = turma.nome;
-        payload.turmaId = turma.id;
+        payload.turma = normalizarTurma(req.body.turma);
       } else {
         payload.turma = null;
-        payload.turmaId = null;
       }
     }
     if (req.body.nome !== undefined) payload.nome = req.body.anonimo ? null : (req.body.nome?.trim() || null);
@@ -158,7 +189,6 @@ export async function update(req, res, next) {
       payload.nome = null;
       payload.contato = null;
       payload.turma = null;
-      payload.turmaId = null;
     }
 
     await item.update(payload);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import iconSolicitacao from '../assets/reference/icon-solicitacao.png';
@@ -58,17 +58,17 @@ const initial = {
 
 export default function NovaManifestacao() {
   const [form, setForm] = useState(initial);
-  const [turmas, setTurmas] = useState([]);
   const [step, setStep] = useState(0);
   const [maxReached, setMaxReached] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [profanityOpen, setProfanityOpen] = useState(false);
+  const [profanityField, setProfanityField] = useState('');
   const navigate = useNavigate();
-
-  useEffect(() => {
-    api.listTurmas().then((data) => setTurmas(Array.isArray(data) ? data : data.data || [])).catch(() => setTurmas([]));
-  }, []);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -77,6 +77,18 @@ export default function NovaManifestacao() {
   function setorLabel() {
     const s = SETORES.find((x) => x.value === form.setor);
     return s ? s.label : '—';
+  }
+
+  const RESPONSAVEIS = {
+    direcao: 'Direção',
+    pedagogico: 'Pedagogo',
+    secretaria: 'Secretaria',
+    apoie: 'APOIE',
+    tutor: 'Tutor',
+  };
+
+  function responsavelLabel() {
+    return RESPONSAVEIS[form.setor] || '—';
   }
 
   function tipoLabel() {
@@ -89,6 +101,20 @@ export default function NovaManifestacao() {
     return form.anonimo ? 'Anônimo' : 'Identificado';
   }
 
+  const LISTA_PT = ['caralho','foda','foder','fodase','puta','putaria','cu','buceta','pica','rola','viado','bicha','arrombado','fdp'];
+  function normalizarTexto(v) {
+    return String(v || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim();
+  }
+  function contemPalavrao(v) {
+    const n = normalizarTexto(v);
+    if (!n) return false;
+    const palavras = n.split(' ');
+    return LISTA_PT.some((p) => {
+      if (p.includes(' ')) return n.includes(p);
+      return palavras.includes(p) || new RegExp('\\\\b' + p + '\\\\b').test(n);
+    });
+  }
+
   function validateStep(s) {
     if (s === 0) return form.anonimo !== null;
     if (s === 1) return !!form.tipo;
@@ -96,11 +122,27 @@ export default function NovaManifestacao() {
     if (s === 3) {
       if (form.titulo.trim().length < 3) return false;
       if (form.descricao.trim().length < 5) return false;
+      if (contemPalavrao(form.titulo) || contemPalavrao(form.descricao)) return false;
+      if (!form.anonimo) {
+        if (!form.nome.trim()) return false;
+        if (contemPalavrao(form.nome)) return false;
+      }
     }
     return true;
   }
 
   function goNext() {
+    if (step === 3) {
+      const campos = [];
+      if (contemPalavrao(form.titulo)) campos.push('Título');
+      if (contemPalavrao(form.descricao)) campos.push('Descrição');
+      if (!form.anonimo && contemPalavrao(form.nome)) campos.push('Nome completo');
+      if (campos.length) {
+        setProfanityField(campos.join(', '));
+        setProfanityOpen(true);
+        return;
+      }
+    }
     if (!validateStep(step)) {
       setError('Preencha os campos obrigatórios antes de avançar.');
       return;
@@ -125,6 +167,15 @@ export default function NovaManifestacao() {
 
   async function onSubmit(e) {
     if (e) e.preventDefault();
+    const campos = [];
+    if (contemPalavrao(form.titulo)) campos.push('Título');
+    if (contemPalavrao(form.descricao)) campos.push('Descrição');
+    if (!form.anonimo && contemPalavrao(form.nome)) campos.push('Nome completo');
+    if (campos.length) {
+      setProfanityField(campos.join(', '));
+      setProfanityOpen(true);
+      return;
+    }
     if (!validateStep(3)) {
       setError('Preencha os campos obrigatórios.');
       setStep(3);
@@ -140,7 +191,7 @@ export default function NovaManifestacao() {
         setor: form.setor || undefined,
         anonimo: !!form.anonimo,
         ...(!form.anonimo
-          ? { nome: form.nome || undefined, turma: form.turma || undefined }
+          ? { nome: form.nome || undefined, turma: form.turma.trim() || undefined }
           : {}),
       };
       const item = await api.createManifestacao(payload);
@@ -149,24 +200,73 @@ export default function NovaManifestacao() {
       setStep(STEPS.length - 1);
       setMaxReached(STEPS.length - 1);
     } catch (err) {
-      setError(err.message);
+      if (err?.status === 502 || err?.status === 503 || err?.status === 504) {
+        setError('Serviço temporariamente indisponível. Tente novamente em instantes.');
+      } else if (err instanceof TypeError) {
+        setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   }
 
   if (success) {
+    function copiar() {
+      navigator.clipboard?.writeText(success.protocolo).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(() => {});
+    }
     return (
       <div className="section">
         <div className="container" style={{ maxWidth: 720 }}>
-          <div className="card" style={{ textAlign: 'center' }}>
-            <h1>Manifestação registrada!</h1>
-            <p>Protocolo: <code style={{ fontSize: 18 }}>{success.protocolo}</code></p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
+          <div className="card">
+            <h1 style={{ textAlign: 'center' }}>Manifestação enviada!</h1>
+            <p style={{ textAlign: 'center' }} className="muted">
+              Sua manifestação foi registrada e encaminhada ao setor responsável.
+            </p>
+
+            <div style={{ marginTop: 16, padding: 16, background: 'var(--blue-05)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <small className="muted">Número de Protocolo</small>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--blue-900)' }}>{success.protocolo}</div>
+                </div>
+                <button type="button" className="btn btn-secondary" onClick={copiar}>
+                  {copied ? 'Copiado!' : 'Copiar protocolo'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <h3>Detalhes da manifestação</h3>
+              <div style={{ display: 'grid', gap: 6, fontSize: 14 }}>
+                <p><strong>Tipo:</strong> {success.tipo}</p>
+                <p><strong>Destinatário:</strong> {success.setor || '—'}</p>
+                <p><strong>Identificação:</strong> {success.anonimo ? 'Anônimo' : (success.nome || 'Identificado')}</p>
+                {success.titulo && <p><strong>Assunto:</strong> {success.titulo}</p>}
+                {success.descricao && <p><strong>Descrição:</strong> {success.descricao}</p>}
+                {success.turma && <p><strong>Turma:</strong> {success.turma}</p>}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <h3>O que acontece agora?</h3>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--muted)', fontSize: 14 }}>
+                <li>Sua manifestação foi registrada e encaminhada ao setor responsável.</li>
+                <li>O setor analisará e processará sua manifestação.</li>
+                <li>Você pode acompanhar o status usando o número do protocolo.</li>
+                <li>A devolutiva será disponibilizada assim que houver resposta.</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20, flexWrap: 'wrap' }}>
               <button className="btn btn-primary" onClick={() => navigate(`/consultar?protocolo=${success.protocolo}`)}>
-                Consultar andamento
+                Consultar protocolo
               </button>
-              <button className="btn btn-secondary" onClick={() => { setSuccess(null); setStep(0); setMaxReached(0); }}>
+              <button className="btn btn-secondary" onClick={() => { setSuccess(null); setStep(0); setMaxReached(0); setCopied(false); }}>
                 Nova manifestação
               </button>
             </div>
@@ -312,21 +412,27 @@ export default function NovaManifestacao() {
                 <div className="card">
                   <h2>Dados</h2>
                   {SummaryBar}
+                  <div className="anon-notice" style={{ marginBottom: 12 }}>
+                    Pessoa responsável por visualizar sua manifestação: {responsavelLabel()}
+                  </div>
                   <div className="form" style={{ marginTop: 12 }}>
                     {!form.anonimo && (
                       <>
                         <label>
                           Nome completo
                           <input value={form.nome} onChange={(e) => update('nome', e.target.value)} />
+                          {form.nome && contemPalavrao(form.nome) && (
+                            <small style={{ color: '#991b1b' }}>Conteúdo inapropriado detectado.</small>
+                          )}
                         </label>
                         <label>
                           Turma
-                          <select value={form.turma} onChange={(e) => update('turma', e.target.value)}>
-                            <option value="">Selecione…</option>
-                            {turmas.map((t) => (
-                              <option key={t.id} value={t.nome}>{t.nome} — {t.turno}</option>
-                            ))}
-                          </select>
+                          <input
+                            value={form.turma}
+                            onChange={(e) => update('turma', e.target.value)}
+                            placeholder="Ex: 1 2 LCH"
+                            maxLength={10}
+                          />
                         </label>
                       </>
                     )}
@@ -338,6 +444,9 @@ export default function NovaManifestacao() {
                         minLength={3}
                         required
                       />
+                      {form.titulo && contemPalavrao(form.titulo) && (
+                        <small style={{ color: '#991b1b' }}>Conteúdo inapropriado detectado.</small>
+                      )}
                     </label>
                     <label>
                       Descrição
@@ -348,6 +457,9 @@ export default function NovaManifestacao() {
                         rows={4}
                         required
                       />
+                      {form.descricao && contemPalavrao(form.descricao) && (
+                        <small style={{ color: '#991b1b' }}>Conteúdo inapropriado detectado.</small>
+                      )}
                     </label>
                   </div>
                 </div>
@@ -370,7 +482,11 @@ export default function NovaManifestacao() {
                     <p><strong>Descrição:</strong> {form.descricao}</p>
                   </div>
                   <div style={{ marginTop: 16 }}>
-                    <button className="btn btn-primary" onClick={onSubmit} disabled={loading}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => { setConfirmChecked(false); setConfirmOpen(true); }}
+                      disabled={loading}
+                    >
                       {loading ? 'Enviando…' : 'Enviar manifestação'}
                     </button>
                   </div>
@@ -395,6 +511,70 @@ export default function NovaManifestacao() {
             )}
           </div>
         </div>
+
+        {profanityOpen && (
+          <div className="modal-overlay" role="dialog" aria-modal="true">
+            <div className="modal">
+              <h2 className="modal__title">Conteúdo inapropriado</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 14 }}>
+                Detectamos conteúdo inapropriado no(s) campo(s): <strong>{profanityField}</strong>.
+                Por favor, revise e remova os termos inadequados antes de continuar.
+              </p>
+              <div className="modal__actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setProfanityOpen(false)}
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmOpen && (
+          <div className="modal-overlay" role="dialog" aria-modal="true">
+            <div className="modal">
+              <h2 className="modal__title">Confirmar envio</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 14 }}>
+                Atenção: o protocolo gerado é <strong>único e irreversível</strong>. Caso você perca o
+                número do protocolo, não será possível consultar sua manifestação nem receber os
+                detalhes/resposta de forma alguma.
+              </p>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14, marginTop: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={confirmChecked}
+                  onChange={(e) => setConfirmChecked(e.target.checked)}
+                  style={{ marginTop: 4 }}
+                />
+                <span>Li e concordo que o protocolo é único e não poderá ser recuperado se perdido.</span>
+              </label>
+              <div className="modal__actions">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => { setConfirmOpen(false); setConfirmChecked(false); }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!confirmChecked || loading}
+                  onClick={() => {
+                    setConfirmOpen(false);
+                    setConfirmChecked(false);
+                    onSubmit();
+                  }}
+                >
+                  {loading ? 'Enviando…' : 'Confirmar e enviar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,0 +1,21 @@
+ATIVIDADE-DOCUMENTAÇÃO DA APLICAÇÃO WEB
+Como etapa final do TCC, cada grupo deverá elaborar uma documentação técnica simplificada da aplicação web desenvolvida. O objetivo é registrar, de forma clara e organizada, como o sistema foi construído, modelado, testado e como deverá ser utilizado pelo usuário.
+A documentação deverá conter:
+1. Código da aplicação
+Apresentar as tecnologias utilizadas e alguns trechos dos principais códigos do sistema, acompanhados de uma pequena explicação sobre sua função. Não é necessário colocar todo o código-fonte
+2. Modelagem da aplicação
+Apresentar os principais diagramas utilizados para representar o funcionamento do sistema como UML, Caso de Uso, Diagrama de Atividades, BPMN ou outro modelo adequado ao projeta
+3. Diagrama do Banco de Dados
+Apresentar o DER (Diagrama Entidade-Relacionamento) ou outro diagrama que mostre as tabelas, seus principais campos e os relacionamentos existentes no banco de dados
+4. Testes da aplicação
+Apresentar alguns testes realizados nas principais funcionalidades do sistema, indicando
+funcionalidade testada procedimento realizado resultado esperado resultado obtido.
+Exemplo:
+Login informar usuário e senha corretos acessar o sistema acesso realizado com sucesso.
+5. Treinamento do usuário
+Elaborar uma orientação simples explicando como o cliente ou usuario deverá utilizar o sistema.
+Pode conter imagens das telas e um pequeno passo a passo das principais funções como acessar o sistema, realizar login, cadastrar informações, consultar dados e utilizar as principais funcionalidades.
+Forma de entrega
+A documentação poderá ser entregue em PDF ou apresentação de slides devendo conter textos curtos, imagens, diagramas, exemplos de código e registros dos testes.
+Objetivo final produzir um material que permita a outra pessoa compreender como a aplicação foi construida, como funciona, como foi testada e como deverá ser utilizada
+
