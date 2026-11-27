@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import { Manifestacao, TIPOS, SETORES, STATUS } from '../models/Manifestacao.js';
 import { sendManifestacaoEmail } from '../services/email.service.js';
+import { validarCampos } from '../services/profanity.service.js';
 
 function normalizarTurma(v) {
   return String(v || '').trim().slice(0, 10);
@@ -117,6 +118,11 @@ export async function create(req, res, next) {
     const errors = validate(req.body);
     if (errors.length) return res.status(400).json({ error: { message: errors.join('; '), status: 400 } });
 
+    const camposRuins = validarCampos(req.body);
+    if (camposRuins.length) {
+      return res.status(400).json({ error: { message: `Conteúdo inapropriado detectado no campo: ${camposRuins.join(', ')}`, status: 400 } });
+    }
+
     const protocolo = await gerarProtocoloUnico();
 
     const item = await Manifestacao.create({
@@ -147,6 +153,11 @@ export async function update(req, res, next) {
 
     const errors = validate(req.body, true);
     if (errors.length) return res.status(400).json({ error: { message: errors.join('; '), status: 400 } });
+
+    const camposRuins = validarCampos(req.body);
+    if (camposRuins.length) {
+      return res.status(400).json({ error: { message: `Conteúdo inapropriado detectado no campo: ${camposRuins.join(', ')}`, status: 400 } });
+    }
 
     const payload = {};
     if (req.body.tipo) payload.tipo = req.body.tipo;

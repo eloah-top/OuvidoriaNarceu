@@ -66,6 +66,8 @@ export default function NovaManifestacao() {
   const [copied, setCopied] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmChecked, setConfirmChecked] = useState(false);
+  const [profanityOpen, setProfanityOpen] = useState(false);
+  const [profanityField, setProfanityField] = useState('');
   const navigate = useNavigate();
 
   function update(field, value) {
@@ -99,6 +101,20 @@ export default function NovaManifestacao() {
     return form.anonimo ? 'Anônimo' : 'Identificado';
   }
 
+  const LISTA_PT = ['caralho','foda','foder','fodase','puta','putaria','cu','buceta','pica','rola','viado','bicha','arrombado','fdp'];
+  function normalizarTexto(v) {
+    return String(v || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim();
+  }
+  function contemPalavrao(v) {
+    const n = normalizarTexto(v);
+    if (!n) return false;
+    const palavras = n.split(' ');
+    return LISTA_PT.some((p) => {
+      if (p.includes(' ')) return n.includes(p);
+      return palavras.includes(p) || new RegExp('\\\\b' + p + '\\\\b').test(n);
+    });
+  }
+
   function validateStep(s) {
     if (s === 0) return form.anonimo !== null;
     if (s === 1) return !!form.tipo;
@@ -106,14 +122,27 @@ export default function NovaManifestacao() {
     if (s === 3) {
       if (form.titulo.trim().length < 3) return false;
       if (form.descricao.trim().length < 5) return false;
+      if (contemPalavrao(form.titulo) || contemPalavrao(form.descricao)) return false;
       if (!form.anonimo) {
         if (!form.nome.trim()) return false;
+        if (contemPalavrao(form.nome)) return false;
       }
     }
     return true;
   }
 
   function goNext() {
+    if (step === 3) {
+      const campos = [];
+      if (contemPalavrao(form.titulo)) campos.push('Título');
+      if (contemPalavrao(form.descricao)) campos.push('Descrição');
+      if (!form.anonimo && contemPalavrao(form.nome)) campos.push('Nome completo');
+      if (campos.length) {
+        setProfanityField(campos.join(', '));
+        setProfanityOpen(true);
+        return;
+      }
+    }
     if (!validateStep(step)) {
       setError('Preencha os campos obrigatórios antes de avançar.');
       return;
@@ -138,6 +167,15 @@ export default function NovaManifestacao() {
 
   async function onSubmit(e) {
     if (e) e.preventDefault();
+    const campos = [];
+    if (contemPalavrao(form.titulo)) campos.push('Título');
+    if (contemPalavrao(form.descricao)) campos.push('Descrição');
+    if (!form.anonimo && contemPalavrao(form.nome)) campos.push('Nome completo');
+    if (campos.length) {
+      setProfanityField(campos.join(', '));
+      setProfanityOpen(true);
+      return;
+    }
     if (!validateStep(3)) {
       setError('Preencha os campos obrigatórios.');
       setStep(3);
@@ -383,6 +421,9 @@ export default function NovaManifestacao() {
                         <label>
                           Nome completo
                           <input value={form.nome} onChange={(e) => update('nome', e.target.value)} />
+                          {form.nome && contemPalavrao(form.nome) && (
+                            <small style={{ color: '#991b1b' }}>Conteúdo inapropriado detectado.</small>
+                          )}
                         </label>
                         <label>
                           Turma
@@ -403,6 +444,9 @@ export default function NovaManifestacao() {
                         minLength={3}
                         required
                       />
+                      {form.titulo && contemPalavrao(form.titulo) && (
+                        <small style={{ color: '#991b1b' }}>Conteúdo inapropriado detectado.</small>
+                      )}
                     </label>
                     <label>
                       Descrição
@@ -413,6 +457,9 @@ export default function NovaManifestacao() {
                         rows={4}
                         required
                       />
+                      {form.descricao && contemPalavrao(form.descricao) && (
+                        <small style={{ color: '#991b1b' }}>Conteúdo inapropriado detectado.</small>
+                      )}
                     </label>
                   </div>
                 </div>
@@ -464,6 +511,27 @@ export default function NovaManifestacao() {
             )}
           </div>
         </div>
+
+        {profanityOpen && (
+          <div className="modal-overlay" role="dialog" aria-modal="true">
+            <div className="modal">
+              <h2 className="modal__title">Conteúdo inapropriado</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 14 }}>
+                Detectamos conteúdo inapropriado no(s) campo(s): <strong>{profanityField}</strong>.
+                Por favor, revise e remova os termos inadequados antes de continuar.
+              </p>
+              <div className="modal__actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setProfanityOpen(false)}
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {confirmOpen && (
           <div className="modal-overlay" role="dialog" aria-modal="true">

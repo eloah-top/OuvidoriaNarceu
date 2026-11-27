@@ -4,4 +4,4 @@ dist/
 coverage/
 *.log
 *.sqlite
-data/
+/data/
