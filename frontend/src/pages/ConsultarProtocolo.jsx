@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 
 export default function ConsultarProtocolo() {
@@ -18,7 +18,13 @@ export default function ConsultarProtocolo() {
       const data = await api.getByProtocolo(p.trim());
       setItem(data);
     } catch (err) {
-      setError(err.message);
+      if (err?.status === 502 || err?.status === 503 || err?.status === 504) {
+        setError('Serviço temporariamente indisponível. Tente novamente em instantes.');
+      } else if (err instanceof TypeError) {
+        setError('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -58,20 +64,12 @@ export default function ConsultarProtocolo() {
         {error && <p className="error">{error}</p>}
         {item && (
           <div className="card">
-            <h2>#{item.protocolo}</h2>
-            <p><strong>Tipo:</strong> {item.tipo}</p>
-            <p><strong>Status:</strong> <span className="badge">{item.status}</span></p>
-            <p><strong>Título:</strong> {item.titulo}</p>
-            <p><strong>Descrição:</strong> {item.descricao}</p>
-            {item.setor && <p><strong>Setor:</strong> {item.setor}</p>}
-            <p><strong>Criado em:</strong> {new Date(item.createdAt).toLocaleString('pt-BR')}</p>
-            {item.resposta && (
-              <div style={{ marginTop: 12, padding: 12, background: 'var(--blue-05)', borderRadius: 8 }}>
-                <strong>Resposta:</strong>
-                <p>{item.resposta}</p>
-                {item.respondedAt && <small className="muted">{new Date(item.respondedAt).toLocaleString('pt-BR')}</small>}
-              </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0 }}>#{item.protocolo}</h2>
+              <Link to={`/manifestacao/${encodeURIComponent(item.protocolo)}`} className="btn btn-primary">
+                Abrir manifestação
+              </Link>
+            </div>
           </div>
         )}
       </div>

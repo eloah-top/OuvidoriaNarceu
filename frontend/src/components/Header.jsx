@@ -5,7 +5,6 @@ const nav = [
   { to: '/', label: 'Início' },
   { to: '/nova', label: 'Nova manifestação' },
   { to: '/consultar', label: 'Consultar protocolo' },
-  { to: '/painel', label: 'Painel' },
 ];
 
 export default function Header() {

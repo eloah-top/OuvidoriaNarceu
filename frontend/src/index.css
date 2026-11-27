@@ -222,6 +222,17 @@ h1, h2, h3, h4 { color: var(--blue-900); margin: 0 0 12px; }
   .manifest-summary { grid-template-columns: 1fr; }
 }
 
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(17, 46, 120, 0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px;
+}
+.modal {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; max-width: 480px; width: 100%; box-shadow: var(--shadow);
+}
+.modal__title { margin: 0 0 12px; }
+.modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
 @media (max-width: 720px) {
   .container { padding: 0 16px; }
   .section { padding: 32px 0; }

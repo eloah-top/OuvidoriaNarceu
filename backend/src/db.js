@@ -1,7 +1,6 @@
 import { env } from './config/env.js';
 import { sequelize } from './config/database.js';
-import { Manifestacao, Turma } from './models/index.js';
-import { seedTurmas } from './seeds/turmas.seed.js';
+import { Manifestacao } from './models/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -11,8 +10,8 @@ export async function initDatabase() {
     if (dir && dir !== '.') fs.mkdirSync(dir, { recursive: true });
   }
   await sequelize.authenticate();
-  await sequelize.sync({ alter: env.nodeEnv !== 'production' });
-  await seedTurmas(Turma);
+  await sequelize.query('DROP TABLE IF EXISTS turmas');
+  await sequelize.sync();
 }
 
-export { sequelize, Manifestacao, Turma };
+export { sequelize, Manifestacao };

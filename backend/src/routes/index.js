@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import healthRoutes from './health.routes.js';
 import manifestacoesRoutes from './manifestacoes.routes.js';
-import turmasRoutes from './turmas.routes.js';
 
 const router = Router();
 
@@ -11,6 +10,5 @@ router.get('/', (_req, res) => {
 
 router.use('/health', healthRoutes);
 router.use('/manifestacoes', manifestacoesRoutes);
-router.use('/turmas', turmasRoutes);
 
 export default router;
